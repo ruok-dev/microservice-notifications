@@ -1,0 +1,242 @@
+openapi: 3.0.3
+info:
+  title: Notification Service API
+  description: Professional microservice for sending email and webhook notifications asynchronously.
+  version: 1.1.0
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: /api/v1
+    description: V1 Base Path
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [email, webhook]
+        status:
+          type: string
+          enum: [pending, queued, delivered, failed]
+        recipient:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+        metadata:
+          type: object
+        retry_count:
+          type: integer
+        error_message:
+          type: string
+        delivered_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+paths:
+  /notifications/email:
+    post:
+      summary: Queue an email notification
+      tags: [Notifications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipient, subject, body]
+              properties:
+                recipient:
+                  type: string
+                  format: email
+                  example: user@example.com
+                subject:
+                  type: string
+                  example: Welcome to our service!
+                body:
+                  type: string
+                  description: HTML or plain text content
+                metadata:
+                  type: object
+                  properties:
+                    bodyText:
+                      type: string
+                      description: Plain text fallback
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /notifications/webhook:
+    post:
+      summary: Queue a webhook notification
+      tags: [Notifications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipient, subject, body]
+              properties:
+                recipient:
+                  type: string
+                  format: uri
+                  example: https://api.partner.com/webhooks
+                subject:
+                  type: string
+                  description: Event name or identifier
+                  example: order.shipped
+                body:
+                  type: string
+                  description: Payload to be sent as POST body
+                metadata:
+                  type: object
+      responses:
+        '202':
+          description: Accepted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /notifications:
+    get:
+      summary: List notifications
+      tags: [Notifications]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [email, webhook]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, queued, delivered, failed]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+
+  /notifications/{id}:
+    get:
+      summary: Get notification details
+      tags: [Notifications]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
+
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      security: []
+      responses:
+        '200':
+          description: OK
+
+components:
+  responses:
+    Unauthorized:
+      description: Authentication required or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
